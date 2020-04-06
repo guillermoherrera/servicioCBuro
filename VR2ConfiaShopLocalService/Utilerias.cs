@@ -4,7 +4,7 @@ using System.ComponentModel;
 using System.Data;
 using System.Text;
 
-namespace VR2ConfiaShopLocalService
+namespace estadosCBService
 {
     public static class Utilerias
     {

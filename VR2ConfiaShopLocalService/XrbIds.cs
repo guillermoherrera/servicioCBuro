@@ -4,7 +4,8 @@ using System.Text;
 
 namespace estadosCBService
 {
-    class RequestException
+    class XrbIds
     {
+        public int XrbId { get; set; }
     }
 }

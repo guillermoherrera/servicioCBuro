@@ -2,7 +2,7 @@
 using System.Collections.Generic;
 using System.Text;
 
-namespace VR2ConfiaShopLocalService
+namespace estadosCBService
 {
     class Pago
     {

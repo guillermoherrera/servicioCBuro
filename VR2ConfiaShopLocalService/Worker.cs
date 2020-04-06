@@ -13,7 +13,7 @@ using Microsoft.Extensions.Options;
 using PushoverClient;
 using RestSharp;
 
-namespace VR2ConfiaShopLocalService
+namespace estadosCBService
 {
     public class Worker : BackgroundService
     {
@@ -46,20 +46,20 @@ namespace VR2ConfiaShopLocalService
             await Task.Delay(1000, stoppingToken);
             DateTime fhUltimaActualizacion = DateTime.MinValue;
             DateTime fhUltimaInsercionOAviso = DateTime.Now;
-            Int64 wsvcCanjeAppId = 0;
-            Int64 NoCda = 0;
-            List<Respuesta> RespuestaAutorizacion;
+            //Int64 wsvcCanjeAppId = 0;
+            //Int64 NoCda = 0;
+            //List<Respuesta> RespuestaAutorizacion;
             List<Autorizacion> Autorizaciones = new List<Autorizacion>();
-            string id_empresa = "";
-            string id_ticket1 = "";
-            string id_forma_pago = "";
+            //string id_empresa = "";
+            //string id_ticket1 = "";
+            //string id_forma_pago = "";
             //string referencia_forma_pago = "";
 
             string mensaje = string.Format("El servicio se ha iniciado...");
             _logger.LogInformation(mensaje);
             EnviaPush("Mensaje Informativo", mensaje);
 
-            ImprimeMensajeInformativo();
+            //ImprimeMensajeInformativo();
 
             while (!stoppingToken.IsCancellationRequested)
             {
@@ -69,20 +69,11 @@ namespace VR2ConfiaShopLocalService
 
                     _logger.LogInformation("Rutina iniciada a las: {time}", DateTimeOffset.Now);
 
-                    using (SqlConnection connection = new SqlConnection(_config.Value.cadenaConexionSql))
+                    /*using (SqlConnection connection = new SqlConnection(_config.Value.cadenaConexionSql))
                     {
                         connection.Open();
                         using (SqlCommand comm = new SqlCommand("wsConfiaShopAutorizacionesPendientes", connection) { CommandType = System.Data.CommandType.StoredProcedure })
                         {
-                            /*
-                             *   ca.wsvcCanjeAppId
- ,ca.idTicket
- ,ca.id_empresa
- ,ca.NoCdaGenerada
- ,10 formaPago
-                             * 
-                             * */
-
                             using (var reader = comm.ExecuteReader())
                             {
                                 Autorizaciones.Clear();
@@ -111,8 +102,8 @@ namespace VR2ConfiaShopLocalService
                                 }
                             }
                         }
-                    }
-                    ActualizaEnVr(Autorizaciones);
+                    }*/
+                    //ActualizaEnVr(Autorizaciones);
 
                 }
                 catch (Exception ex)
@@ -128,7 +119,7 @@ namespace VR2ConfiaShopLocalService
             }
         }
 
-        private void ImprimeMensajeInformativo()
+        /*private void ImprimeMensajeInformativo()
         {
             using (SqlConnection connection = new SqlConnection(_config.Value.cadenaConexionSql))
             {
@@ -150,9 +141,9 @@ namespace VR2ConfiaShopLocalService
 
                 }
             }
-        }
+        }*/
 
-            private void ActualizaEnVr(List<Autorizacion> autorizaciones)
+        /*private void ActualizaEnVr(List<Autorizacion> autorizaciones)
         {
             if (autorizaciones.Count > 0)
             {
@@ -194,9 +185,9 @@ namespace VR2ConfiaShopLocalService
             }
             else
                 _logger.LogInformation("Nada que actualizar...");
-        }
+        }*/
 
-        private List<Respuesta> GetCodigoAutorizacionVenta(string id_empresa,string id_ticket1,string id_forma_pago,string referencia_forma_pago)
+        /*private List<Respuesta> GetCodigoAutorizacionVenta(string id_empresa,string id_ticket1,string id_forma_pago,string referencia_forma_pago)
         {
             var client = new RestClient(Url.Combine(_config.Value.apiURI, _config.Value.servicioObtenerPagos));
             var request = new RestRequest(Method.GET);
@@ -222,7 +213,7 @@ namespace VR2ConfiaShopLocalService
             _logger.LogDebug("Peticion web realizada a: {uri}", response.ResponseUri);
 
             return resultados;
-        }
+        }*/
 
         private void EnviaPush(string titulo, string mensaje)
         {

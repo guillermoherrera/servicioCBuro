@@ -7,7 +7,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Serilog;
 
-namespace VR2ConfiaShopLocalService
+namespace estadosCBService
 {
     public class Program
     {
