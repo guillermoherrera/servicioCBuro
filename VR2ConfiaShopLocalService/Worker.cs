@@ -27,12 +27,6 @@ namespace estadosCBService
             _config = config;
         }
 
-        //public override Task StartAsync(CancellationToken cancellationToken)
-        //{
-
-
-        //}
-
         public override Task StopAsync(CancellationToken cancellationToken)
         {
             string mensaje = string.Format("El servicio se ha detenido...");
@@ -46,70 +40,96 @@ namespace estadosCBService
             await Task.Delay(1000, stoppingToken);
             DateTime fhUltimaActualizacion = DateTime.MinValue;
             DateTime fhUltimaInsercionOAviso = DateTime.Now;
-            //Int64 wsvcCanjeAppId = 0;
-            //Int64 NoCda = 0;
-            //List<Respuesta> RespuestaAutorizacion;
             List<Autorizacion> Autorizaciones = new List<Autorizacion>();
-            //string id_empresa = "";
-            //string id_ticket1 = "";
-            //string id_forma_pago = "";
-            //string referencia_forma_pago = "";
-
             string mensaje = string.Format("El servicio se ha iniciado...");
             _logger.LogInformation(mensaje);
             EnviaPush("Mensaje Informativo", mensaje);
 
-            //ImprimeMensajeInformativo();
-
             while (!stoppingToken.IsCancellationRequested)
             {
-
                 try
                 {
 
                     _logger.LogInformation("Rutina iniciada a las: {time}", DateTimeOffset.Now);
 
-                    /*using (SqlConnection connection = new SqlConnection(_config.Value.cadenaConexionSql))
-                    {
-                        connection.Open();
-                        using (SqlCommand comm = new SqlCommand("wsConfiaShopAutorizacionesPendientes", connection) { CommandType = System.Data.CommandType.StoredProcedure })
-                        {
-                            using (var reader = comm.ExecuteReader())
-                            {
-                                Autorizaciones.Clear();
-                                while (reader.Read())
-                                {
-                                    try
-                                    {
-                                        wsvcCanjeAppId = reader.GetInt64(0);
-                                        id_ticket1 = reader.GetString(1);
-                                        id_empresa = reader.GetInt32(2).ToString();
-                                        NoCda = reader.GetInt64(3);
-                                        id_forma_pago = reader.GetInt32(4).ToString();
-                                        RespuestaAutorizacion = GetCodigoAutorizacionVenta(id_empresa, id_ticket1, id_forma_pago, NoCda.ToString());
+                    List<XrbIds> xrbIds = new List<XrbIds>();
 
-                                        foreach(Respuesta r in RespuestaAutorizacion)
-                                        {
-                                            Autorizaciones.Add(new Autorizacion() { wsvcCanjeAppId = wsvcCanjeAppId, noCda = NoCda, validacion = r.validacion, mensaje = r.msj, regresa=r.regresa});
-                                        }
-                                        
-                                       
-                                    }
-                                    catch (Exception ex)
+                    //Solicitudes en estado en espera de consulta de buro
+                    List<Solicitud>  solicitudes = await FireStore.GetSolicitudesFromFireStore();
+
+                    foreach (Solicitud item in solicitudes)
+                    {
+                        if(item.CB_idXRB > 0)
+                        {
+                            xrbIds.Add(new XrbIds { XrbId = item.CB_idXRB });
+                        }               
+                    }
+                    
+                    if(xrbIds.Count > 0)
+                    {
+                        using (SqlConnection connection = new SqlConnection(_config.Value.cadenaConexionSql))
+                        {
+
+                            DataTable dt = new DataTable("Prueba");
+                            dt.Columns.Add("id", typeof(int));
+
+                            foreach (XrbIds value in xrbIds)
+                            {
+                                DataRow dr = dt.NewRow();
+                                dr["id"] = value.XrbId;
+                                dt.Rows.Add(dr);
+                            }
+                            IDataReader idr = dt.CreateDataReader();
+
+                            SqlParameter[] Parameters =
+                            {
+                            new SqlParameter("@ids", idr) { SqlDbType = SqlDbType.Structured, TypeName = "dbo.ttIdXRBConsulta"},
+                        };
+
+                            DataTable exec = SqlHelper.ExecuteDataTable(connection, CommandType.StoredProcedure, "wsSolicitudesBuroAtendidas", Parameters, 1);
+
+                            foreach (DataRow dataRow in exec.Rows)
+                            {
+                                if (dataRow[7].ToString() == "True" && dataRow[8].ToString() == "2")
+                                {
+                                    //status 9
+                                    if (await FireStore.ActualizaStatusConsulta(dataRow[0].ToString(), dataRow[4].ToString(), 9))
                                     {
-                                        _logger.LogError(ex, "Error al insertar corrida: {corrida}", NoCda);
+                                        _logger.LogInformation("Solicitud Relacionada a {0} actualizada a 'POR AUTORIZAR'", dataRow[0].ToString());
                                     }
+                                    else
+                                    {
+                                        _logger.LogError("ERROR Solicitud Relacionada a {0} NO actualizada a status 9", dataRow[0].ToString());
+                                    }
+                                }
+                                else if (dataRow[7].ToString() == "True" && dataRow[8].ToString() == "3")
+                                {
+                                    //status 10 y mensaje
+                                    if (await FireStore.ActualizaStatusConsulta(dataRow[0].ToString(), dataRow[4].ToString(), 10))
+                                    {
+                                        _logger.LogInformation("Solicitud Relacionada a {0} actualizada a 'ERROR EN CONSULTA DE BURO'", dataRow[0].ToString());
+                                    }
+                                    else
+                                    {
+                                        _logger.LogError("ERROR Solicitud Relacionada a {0} NO actualizada a status 10", dataRow[0].ToString());
+                                    }
+                                }
+                                else
+                                {
+                                    _logger.LogInformation("Solicitud Relacionada a {0} sin consulta realizada", dataRow[0].ToString());
                                 }
                             }
                         }
-                    }*/
-                    //ActualizaEnVr(Autorizaciones);
-
+                    }
+                    else
+                    {
+                        _logger.LogInformation("EMPTY --> Sin solicitudes con ids de consulta de buro por revisar");
+                    }
                 }
                 catch (Exception ex)
                 {
-                    _logger.LogError(ex, "Error al insertar");
-                    EnviaPush("Error al insertar", ex.Message);
+                    _logger.LogError(ex, "Error en la clase ExecuteAsync");
+                    EnviaPush("Error", ex.Message);
                 }
                 finally
                 {
@@ -119,102 +139,7 @@ namespace estadosCBService
             }
         }
 
-        /*private void ImprimeMensajeInformativo()
-        {
-            using (SqlConnection connection = new SqlConnection(_config.Value.cadenaConexionSql))
-            {
-                connection.Open();
-                using (SqlCommand comm = new SqlCommand("mensajeRobot", connection) { CommandType = System.Data.CommandType.StoredProcedure })
-                {
-                    //CREATE PROCEDURE cshActualizaAutorizaciones @autorizaciones ttAutorizacionConfiaShop READONLY, @resultCode INT OUTPUT, @result VARCHAR(500) OUTPUT
-
-                    try
-                    {
-                        string mensajeRobot = comm.ExecuteScalar().ToString();
-                        _logger.LogInformation(mensajeRobot);
-                    }
-                    catch (Exception ex)
-                    {
-
-                        _logger.LogError(ex, "Error al obtener mensaje del robot...");
-                    }
-
-                }
-            }
-        }*/
-
-        /*private void ActualizaEnVr(List<Autorizacion> autorizaciones)
-        {
-            if (autorizaciones.Count > 0)
-            {
-
-                using (SqlConnection connection = new SqlConnection(_config.Value.cadenaConexionSql))
-                {
-                    connection.Open();
-                    using (SqlCommand comm = new SqlCommand("cshActualizaAutorizaciones", connection) { CommandType = System.Data.CommandType.StoredProcedure })
-                    {
-                        //CREATE PROCEDURE cshActualizaAutorizaciones @autorizaciones ttAutorizacionConfiaShop READONLY, @resultCode INT OUTPUT, @result VARCHAR(500) OUTPUT
-
-                        try
-                        {
-                            SqlParameter tvpParam = comm.Parameters.AddWithValue("@autorizaciones", autorizaciones.ToDataTable());
-                            tvpParam.SqlDbType = SqlDbType.Structured;
-                            tvpParam.TypeName = "dbo.ttAutorizacionConfiaShop001";
-
-                            comm.Parameters.Add(new SqlParameter("@resultcode", SqlDbType.Int) { Direction = ParameterDirection.Output });
-                            comm.Parameters.Add(new SqlParameter("@result", SqlDbType.VarChar, 500) { Direction = ParameterDirection.Output });
-
-                            comm.ExecuteNonQuery();
-
-                            if (Convert.ToInt32(comm.Parameters[1].Value) > 0)
-                            {
-                                throw new Exception(comm.Parameters[2].Value.ToString());
-                            }
-
-                            _logger.LogInformation(comm.Parameters[2].Value.ToString());
-
-                        }
-                        catch (Exception ex)
-                        {
-
-                            _logger.LogError(ex, "Error al actualizar en VR...");
-                        }
-
-                    }
-                }
-            }
-            else
-                _logger.LogInformation("Nada que actualizar...");
-        }*/
-
-        /*private List<Respuesta> GetCodigoAutorizacionVenta(string id_empresa,string id_ticket1,string id_forma_pago,string referencia_forma_pago)
-        {
-            var client = new RestClient(Url.Combine(_config.Value.apiURI, _config.Value.servicioObtenerPagos));
-            var request = new RestRequest(Method.GET);
-
-            request.AddQueryParameter("id_empresa", id_empresa);
-            request.AddQueryParameter("id_ticket1", id_ticket1);
-            request.AddQueryParameter("id_forma_pago", id_forma_pago);
-            request.AddQueryParameter("referencia_forma_pago", referencia_forma_pago);
-
-            //IRestResponse response = client.Execute(request);
-            IRestResponse response = client.Execute(request);
-            _logger.LogDebug("Peticion web realizada a: {uri}", response.ResponseUri);
-
-            if (response.StatusCode != System.Net.HttpStatusCode.OK)
-            {
-                throw new Exception(String.Format("Error al realizar la peticion web a {0}: {1} {2} ...", Url.Combine(_config.Value.apiURI, _config.Value.servicioObtenerPagos), response.StatusCode.ToString(), response.ErrorMessage));
-            }
-
-            string json = response.Content;
-
-            List<Respuesta> resultados = JsonSerializer.Deserialize<List<Respuesta>>(json);
-
-            _logger.LogDebug("Peticion web realizada a: {uri}", response.ResponseUri);
-
-            return resultados;
-        }*/
-
+        
         private void EnviaPush(string titulo, string mensaje)
         {
             Pushover pclient = new Pushover(_config.Value.pushoverApiKey);
