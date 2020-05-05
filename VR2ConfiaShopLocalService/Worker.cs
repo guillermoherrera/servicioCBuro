@@ -83,23 +83,33 @@ namespace estadosCBService
 
                             SqlParameter[] Parameters =
                             {
-                            new SqlParameter("@ids", idr) { SqlDbType = SqlDbType.Structured, TypeName = "dbo.ttIdXRBConsulta"},
-                        };
+                                new SqlParameter("@ids", idr) { SqlDbType = SqlDbType.Structured, TypeName = "dbo.ttIdXRBConsulta"},
+                            };
 
                             DataTable exec = SqlHelper.ExecuteDataTable(connection, CommandType.StoredProcedure, "wsSolicitudesBuroAtendidas", Parameters, 1);
 
                             foreach (DataRow dataRow in exec.Rows)
                             {
-                                if (dataRow[7].ToString() == "True" && dataRow[8].ToString() == "2")
+                                if (dataRow[7].ToString() == "True" && dataRow[4].ToString() == "OK.")
                                 {
+                                    String url = "";
+                                    url = await GetUrlPdfBuro(dataRow[1].ToString(), dataRow[0].ToString(), int.Parse(dataRow[13].ToString()));
+
                                     //status 9
-                                    if (await FireStore.ActualizaStatusConsulta(dataRow[0].ToString(), dataRow[4].ToString(), 9))
+                                    if(url != "") 
                                     {
-                                        _logger.LogInformation("Solicitud Relacionada a {0} actualizada a 'POR AUTORIZAR'", dataRow[0].ToString());
+                                        if (await FireStore.ActualizaStatusConsulta(dataRow[0].ToString(), dataRow[4].ToString(), 9))
+                                        {
+                                            _logger.LogInformation("Solicitud Relacionada a {0} actualizada a 'POR AUTORIZAR'", dataRow[0].ToString());
+                                        }
+                                        else
+                                        {
+                                            _logger.LogError("ERROR Solicitud Relacionada a {0} NO actualizada a status 9", dataRow[0].ToString());
+                                        }
                                     }
                                     else
                                     {
-                                        _logger.LogError("ERROR Solicitud Relacionada a {0} NO actualizada a status 9", dataRow[0].ToString());
+                                        _logger.LogError("ERROR: No se pudo obtener la url de la Solicitud Buro a {0}", dataRow[0].ToString());
                                     }
                                 }
                                 else if (dataRow[7].ToString() == "True" && dataRow[8].ToString() == "3")
@@ -139,7 +149,65 @@ namespace estadosCBService
             }
         }
 
-        
+        private async Task<String> GetUrlPdfBuro(String _cveCli, String _xrbID, int sistema)
+        {
+            String url = "";
+            _logger.LogInformation("Consultando URL solicitud Buro {0}", _xrbID);
+
+            try
+            {
+                String cadConn = GetCadenaSistema(sistema);
+
+                using (SqlConnection connection = new SqlConnection(cadConn))
+                {
+                    SqlParameter[] Parameters =
+                    {
+                        new SqlParameter("@Usu", SqlDbType.Int) {SqlValue = 0},
+                        new SqlParameter("@SoloPendientes", SqlDbType.Bit) { SqlValue = 0 },
+                        new SqlParameter("@fhInicio", SqlDbType.DateTime) { SqlValue = "01/01/01"},
+                        new SqlParameter("@fhFinal", SqlDbType.DateTime) { SqlValue = "01/01/01"},
+                        new SqlParameter("@cvecli", SqlDbType.VarChar) { SqlValue = _cveCli},
+                        new SqlParameter("@distribuidorID", SqlDbType.BigInt) { SqlValue = 0},
+                    };
+
+                    DataTable exec = SqlHelper.ExecuteDataTable(connection, CommandType.StoredProcedure, "ModListaClientesBuro", Parameters, 2);
+                    foreach (DataRow dataRow in exec.Rows)
+                    {
+                        if(_xrbID == dataRow[0].ToString())
+                        {
+                            _logger.LogInformation("Lolcat");
+                            //url = dataRow[8].ToString();
+                        }
+                    }
+                }
+            }
+            catch(Exception ex)
+            {
+                _logger.LogError(ex, "Error en la clase ExecuteAsync");
+            }
+            
+            return url;
+        }
+
+        private String GetCadenaSistema(int sistema)
+        {
+            _logger.LogInformation("Obteniendo conexion al sistema {0}", sistema);
+            switch (sistema)
+            {
+                case 1:
+                    return _config.Value.cadenaConexionSqlC;
+                case 2:
+                    return _config.Value.cadenaConexionSqlOPOR;
+                    case 3:
+                    return _config.Value.cadenaConexionSqlCR;
+                case 4:
+                    return _config.Value.cadenaConexionSqlGYT;
+                default:
+                    return "";
+            }
+        }
+
+
         private void EnviaPush(string titulo, string mensaje)
         {
             Pushover pclient = new Pushover(_config.Value.pushoverApiKey);

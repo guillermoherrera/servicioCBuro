@@ -35,6 +35,20 @@ namespace estadosCBService
                     dt.Columns.Add("XML");
                     dt.Columns.Add("validacionExterna");
                     break;
+                case 2:
+                    dt.Columns.Add("ID");
+                    dt.Columns.Add("Cvecli");
+                    dt.Columns.Add("NombreCom");
+                    dt.Columns.Add("FHRegistro");
+                    dt.Columns.Add("ResultDesc");
+                    dt.Columns.Add("Registro");
+                    dt.Columns.Add("Estatus");
+                    dt.Columns.Add("PDf");
+                    dt.Columns.Add("URL");
+                    dt.Columns.Add("ExpedienteID");
+                    dt.Columns.Add("CveEncar");
+                    dt.Columns.Add("Encargado");
+                    break;
                 default:
                     break;
             }
@@ -47,6 +61,12 @@ namespace estadosCBService
                     while (dr.Read())
                     {
                         dt.Rows.Add(dr[0], dr[1], dr[2], dr[3], dr[4], dr[5], dr[6], dr[7], dr[8], dr[9], dr[10], dr[11], dr[12], dr[13], dr[14], dr[15], dr[16], dr[17], dr[18]);
+                    }
+                    break;
+                case 2:
+                    while (dr.Read())
+                    {
+                        dt.Rows.Add(dr[0], dr[1], dr[2], dr[3], dr[4], dr[5], dr[6], dr[7], dr[8], dr[9], dr[10], dr[11]);
                     }
                     break;
                 default:
