@@ -23,6 +23,18 @@ namespace estadosCBService
         public string pushoverApiKeyUser { get; set; }
 
         public string appName { get; set; }
-
+        
+        public string apiKeyFirebase { get; set; }
+        public string userAuthFirebase { get; set; }
+        public string passAuthFurebase { get; set; }
+        public string bucket { get; set; }
+        public string userFtpConfia { get; set; }
+        public string passFtpConfia { get; set; }
+        public string userFtpOpor { get; set; }
+        public string passFtpOpor { get; set; }
+        public string userFtpCrece { get; set; }
+        public string passFtpCrece { get; set; }
+        public string userFtpGyt { get; set; }
+        public string passFtpGyt { get; set; }
     }
 }

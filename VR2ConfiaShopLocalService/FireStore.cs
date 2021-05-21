@@ -56,7 +56,7 @@ namespace estadosCBService
             return solicitudes;
         }
 
-        public static async Task<bool> ActualizaStatusConsulta(string _idXRB, string mensaje, int status)
+        public static async Task<bool> ActualizaStatusConsulta(string _idXRB, string mensaje, int status, String url)
         {
             bool result = false;
             try
@@ -90,6 +90,7 @@ namespace estadosCBService
                         }
                     }
                     
+                    if (status == 9) { updates.Add("documentoBuroPdf", url); }
                     if (status == 10) { updates.Add("mensajeErrorConsultaBuro", mensaje); }
                     transaction.Update(solicitudAux, updates);
                 });

@@ -2,10 +2,14 @@ using System;
 using System.Collections.Generic;
 using System.Data;
 using System.Data.SqlClient;
+using System.IO;
 using System.Linq;
+using System.Net;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
+using Firebase.Auth;
+using Firebase.Storage;
 using Flurl;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -45,10 +49,16 @@ namespace estadosCBService
             _logger.LogInformation(mensaje);
             EnviaPush("Mensaje Informativo", mensaje);
 
+            
+
             while (!stoppingToken.IsCancellationRequested)
             {
                 try
                 {
+                    var auth = new FirebaseAuthProvider(new FirebaseConfig(_config.Value.apiKeyFirebase));
+                    FirebaseAuthLink a = await auth.SignInWithEmailAndPasswordAsync(_config.Value.userAuthFirebase, _config.Value.passAuthFurebase);
+                    //var cancellation = new CancellationTokenSource();
+                    String tokenFirebase = a.FirebaseToken;
 
                     _logger.LogInformation("Rutina iniciada a las: {time}", DateTimeOffset.Now);
 
@@ -93,12 +103,12 @@ namespace estadosCBService
                                 if (dataRow[7].ToString() == "True" && dataRow[4].ToString() == "OK.")
                                 {
                                     String url = "";
-                                    url = await GetUrlPdfBuro(dataRow[1].ToString(), dataRow[0].ToString(), int.Parse(dataRow[13].ToString()));
+                                    url = await GetUrlPdfBuro(dataRow[1].ToString(), dataRow[0].ToString(), int.Parse(dataRow[13].ToString()), tokenFirebase);
 
                                     //status 9
                                     if(url != "") 
                                     {
-                                        if (await FireStore.ActualizaStatusConsulta(dataRow[0].ToString(), dataRow[4].ToString(), 9))
+                                        if (await FireStore.ActualizaStatusConsulta(dataRow[0].ToString(), dataRow[4].ToString(), 9, url))
                                         {
                                             _logger.LogInformation("Solicitud Relacionada a {0} actualizada a 'POR AUTORIZAR'", dataRow[0].ToString());
                                         }
@@ -115,7 +125,7 @@ namespace estadosCBService
                                 else if (dataRow[7].ToString() == "True" && dataRow[8].ToString() == "3")
                                 {
                                     //status 10 y mensaje
-                                    if (await FireStore.ActualizaStatusConsulta(dataRow[0].ToString(), dataRow[4].ToString(), 10))
+                                    if (await FireStore.ActualizaStatusConsulta(dataRow[0].ToString(), dataRow[4].ToString(), 10, ""))
                                     {
                                         _logger.LogInformation("Solicitud Relacionada a {0} actualizada a 'ERROR EN CONSULTA DE BURO'", dataRow[0].ToString());
                                     }
@@ -149,7 +159,7 @@ namespace estadosCBService
             }
         }
 
-        private async Task<String> GetUrlPdfBuro(String _cveCli, String _xrbID, int sistema)
+        private async Task<String> GetUrlPdfBuro(String _cveCli, String _xrbID, int sistema, String tokenFirebase)
         {
             String url = "";
             _logger.LogInformation("Consultando URL solicitud Buro {0}", _xrbID);
@@ -175,15 +185,37 @@ namespace estadosCBService
                     {
                         if(_xrbID == dataRow[0].ToString())
                         {
-                            _logger.LogInformation("Lolcat");
-                            //url = dataRow[8].ToString();
+                            url = "http://" + dataRow[8].ToString();
+
+                            WebClient MyWebClient = new WebClient();
+                            MyWebClient.Credentials = new NetworkCredential(getUserFtpSistema(sistema), getPassFtpSistema(sistema));
+                            byte[] BytesFile = MyWebClient.DownloadData(url);
+
+                            MemoryStream stream = new MemoryStream(BytesFile);
+
+                            var task = new FirebaseStorage(_config.Value.bucket,
+                                new FirebaseStorageOptions
+                                {
+                                    AuthTokenAsyncFactory = () => Task.FromResult(tokenFirebase),
+                                    ThrowOnCancel = true // when you cancel the upload, exception is thrown. By default no exception is thrown
+                                })
+                                .Child("Buro")
+                                .Child(sistema.ToString()+ "_" +_xrbID + ".pdf")
+                                .PutAsync(stream);
+
+                            // Track progress of the upload
+                            task.Progress.ProgressChanged += (s, e) => Console.WriteLine($"Progress: {e.Percentage} %");
+
+                            // await the task to wait until upload completes and get the download url
+                            var downloadUrl = await task;
+                            url = downloadUrl;
                         }
                     }
                 }
             }
             catch(Exception ex)
             {
-                _logger.LogError(ex, "Error en la clase ExecuteAsync");
+                _logger.LogError(ex, "Error en GetUrlPdfBuro: {0}", ex.Message);
             }
             
             return url;
@@ -207,6 +239,41 @@ namespace estadosCBService
             }
         }
 
+        private String getUserFtpSistema(int sistema)
+        {
+            _logger.LogInformation("Obteniendo user ftp al sistema {0}", sistema);
+            switch (sistema)
+            {
+                case 1:
+                    return _config.Value.userFtpConfia;
+                case 2:
+                    return _config.Value.userFtpOpor;
+                case 3:
+                    return _config.Value.userFtpCrece;
+                case 4:
+                    return _config.Value.userFtpGyt;
+                default:
+                    return "";
+            }
+        }
+
+        private String getPassFtpSistema(int sistema)
+        {
+            _logger.LogInformation("Obteniendo pass ftp al sistema {0}", sistema);
+            switch (sistema)
+            {
+                case 1:
+                    return _config.Value.passFtpConfia;
+                case 2:
+                    return _config.Value.passFtpOpor;
+                case 3:
+                    return _config.Value.passFtpCrece;
+                case 4:
+                    return _config.Value.passFtpGyt;
+                default:
+                    return "";
+            }
+        }
 
         private void EnviaPush(string titulo, string mensaje)
         {
